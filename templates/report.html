@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{{ report.title }}</title>
+<style>
+  :root { --ink:#1a2332; --muted:#5b6b7f; --line:#d7dde6; --bg:#f6f8fb;
+          --accent:#1f4e79; --ok:#1e7d46; --warn:#b3691e; --bad:#a12622; --amb:#6b6b6b; }
+  * { box-sizing: border-box; }
+  body { font-family: Georgia, "Times New Roman", serif; color: var(--ink);
+         margin: 0; background: var(--bg); line-height: 1.55; }
+  .page { max-width: 920px; margin: 0 auto; background: #fff; padding: 48px 56px; }
+  header { border-bottom: 3px solid var(--accent); padding-bottom: 16px; margin-bottom: 28px; }
+  h1 { font-size: 26px; margin: 0 0 6px; color: var(--accent); }
+  h2 { font-size: 19px; color: var(--accent); border-bottom: 1px solid var(--line);
+       padding-bottom: 4px; margin-top: 34px; }
+  h3 { font-size: 15px; margin-bottom: 6px; }
+  .meta { color: var(--muted); font-size: 13px; font-family: "Segoe UI", Arial, sans-serif; }
+  .meta td { padding: 2px 14px 2px 0; }
+  .verdict { display: inline-block; padding: 3px 12px; font-family: "Segoe UI", Arial, sans-serif;
+             font-size: 13px; font-weight: 600; color: #fff; border-radius: 3px; }
+  .v-CONFIRMED { background: var(--bad); }
+  .v-SUSPECTED { background: var(--warn); }
+  .v-INCONCLUSIVE { background: var(--amb); }
+  .v-NO_ISSUE { background: var(--ok); }
+  table.data { width: 100%; border-collapse: collapse; font-family: "Segoe UI", Arial, sans-serif;
+               font-size: 12.5px; margin: 10px 0 4px; }
+  table.data th { background: #eef2f7; text-align: left; padding: 7px 9px;
+                  border: 1px solid var(--line); }
+  table.data td { padding: 6px 9px; border: 1px solid var(--line); vertical-align: top; }
+  .small { font-size: 11.5px; color: var(--muted); }
+  ul { padding-left: 20px; } li { margin-bottom: 6px; }
+  .finding { border: 1px solid var(--line); border-left: 4px solid var(--bad);
+             padding: 12px 16px; margin: 12px 0; }
+  .finding.suspected { border-left-color: var(--warn); }
+  .foot { margin-top: 40px; border-top: 1px solid var(--line); padding-top: 12px;
+          font-size: 11.5px; color: var(--muted); }
+  @media print { body { background: #fff; } .page { padding: 0; } }
+</style>
+</head>
+<body>
+<div class="page">
+
+<header>
+  <h1>{{ report.title }}</h1>
+  <table class="meta">
+    <tr><td>Tool</td><td>{{ report.tool.name }} {{ report.tool.version }}</td></tr>
+    <tr><td>Generated</td><td>{{ report.generated_at }}</td></tr>
+    <tr><td>Scan run</td><td>{{ report.run_id }}</td></tr>
+    <tr><td>Target</td><td>{{ report.target }}</td></tr>
+    <tr><td>Overall verdict</td><td><span class="verdict v-{{ report.executive_summary.overall_classification }}">{{ report.executive_summary.overall_classification }}</span></td></tr>
+  </table>
+</header>
+
+<h2>1. Executive Summary</h2>
+<p>{{ report.executive_summary.summary }}</p>
+<table class="data">
+  <tr><th>Classification</th><th>Test cases</th></tr>
+  {% for name, count in report.executive_summary.counts.items() %}
+  <tr><td><span class="verdict v-{{ name }}">{{ name }}</span></td><td>{{ count }}</td></tr>
+  {% endfor %}
+</table>
+
+<h2>2. Scope</h2>
+<table class="data">
+  <tr><th>Endpoint</th><th>Method</th><th>Path</th><th>Policy (own / cross / unauthenticated)</th></tr>
+  {% for e in report.scope.endpoints %}
+  <tr>
+    <td>{{ e.endpoint_id }} — {{ e.name }}</td>
+    <td>{{ e.method }}</td>
+    <td>{{ e.path }}</td>
+    <td>{{ e.policy.own_resource }} / {{ e.policy.cross_account }} / {{ e.policy.unauthenticated }}</td>
+  </tr>
+  {% endfor %}
+</table>
+<p class="small">Test identities (labels only): {{ report.scope.identities | join(", ") }}.
+Request budget: {{ report.scope.request_budget.total_used }} of {{ report.scope.request_budget.max_per_scan }}
+per scan{% if report.scope.request_budget.exhausted %} (exhausted){% endif %}.</p>
+
+<h2>3. Methodology</h2>
+<ul>
+  {% for item in report.methodology %}<li>{{ item }}</li>{% endfor %}
+</ul>
+
+<h2>4. Environment</h2>
+<p>Testing was performed from an isolated lab environment against
+<strong>{{ report.target }}</strong>, a loopback-only target enforced by the tool's
+target validation. The scan client disables redirects, applies a 10-second timeout,
+streams and caps response bodies, and ignores environment proxy settings.</p>
+
+{% for section in report.test_matrix %}
+<h2>5. Test Matrix — {{ section.endpoint_id }}</h2>
+<table class="data">
+  <tr><th>Case</th><th>Requester → owner</th><th>Expected</th><th>Status</th><th>Access</th><th>Classification</th></tr>
+  {% for case in section.cases %}
+  <tr>
+    <td>{{ case.case_id }}</td>
+    <td>{{ case.requester_label }} → {{ case.owner_label }}</td>
+    <td>{{ case.expected_decision }}</td>
+    <td>{% if case.transport_error %}{{ case.transport_error }}{% else %}{{ case.status_code }}{% endif %}</td>
+    <td>{{ "yes" if case.access_obtained else "no" }}</td>
+    <td><span class="verdict v-{{ case.classification }}">{{ case.classification }}</span></td>
+  </tr>
+  {% endfor %}
+</table>
+{% endfor %}
+
+<h2>6. Results</h2>
+{% for e in report.results %}
+<h3>{{ e.endpoint_id }} — {{ e.endpoint_name }}
+  (<span class="verdict v-{{ e.overall_classification }}">{{ e.overall_classification }}</span>)</h3>
+<table class="data">
+  <tr><th>Case</th><th>Observations and reason</th></tr>
+  {% for case in e.cases %}
+  <tr>
+    <td>{{ case.case_id }}</td>
+    <td>
+      {% if case.transport_error %}Transport error: {{ case.transport_error }}.{% else %}
+      HTTP {{ case.status_code }}{% if case.access_obtained %}, content returned{% else %}, no content returned{% endif %}.{% endif %}
+      Expected {{ case.expected_decision }}.
+      <br><em>{{ case.reason }}</em>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+{% endfor %}
+
+<h2>7. Findings</h2>
+{% if report.findings %}
+{% for finding in report.findings %}
+<div class="finding {% if finding.classification == 'SUSPECTED' %}suspected{% endif %}">
+  <h3>{{ finding.classification }} — {{ finding.endpoint_id }} / {{ finding.case_id }}
+    (severity: {{ finding.severity }}, confidence: {{ finding.confidence }})</h3>
+  <p>{{ finding.description }}</p>
+  <p><strong>Remediation:</strong> {{ finding.remediation }}</p>
+</div>
+{% endfor %}
+{% else %}
+<p>No CONFIRMED or SUSPECTED findings were recorded for this run. Inconclusive and
+non-issue outcomes are documented in the results section; they are not reported as
+vulnerabilities.</p>
+{% endif %}
+
+<h2>8. Redacted Evidence</h2>
+{% for e in report.results %}
+<h3>{{ e.endpoint_id }}</h3>
+<table class="data">
+  <tr><th>Case</th><th>Resource fingerprint</th><th>Fields present (names only)</th><th>Comparison vs owner baseline</th></tr>
+  {% for case in e.cases %}
+  <tr>
+    <td>{{ case.case_id }}</td>
+    <td class="small">{{ case.resource_id_fingerprint or "n/a" }}</td>
+    <td class="small">
+      {% if case.fields_present %}
+      identity: {{ case.fields_present.identity_fields | join(", ") or "—" }}<br>
+      ownership: {{ case.fields_present.ownership_fields | join(", ") or "—" }}<br>
+      resource id: {{ case.fields_present.resource_id_fields | join(", ") or "—" }}<br>
+      sensitive: {{ case.fields_present.sensitive_fields | join(", ") or "—" }}
+      {% else %}—{% endif %}
+    </td>
+    <td class="small">
+      {% if case.comparison %}
+      baseline {{ case.comparison.baseline_case_id }}:
+      owner data returned: {{ "yes" if case.comparison.matches_owner_baseline else ("no" if case.comparison.matches_owner_baseline == False else "n/a") }};
+      owner identity: {{ "yes" if case.comparison.identity_matches_resource_owner else ("no" if case.comparison.identity_matches_resource_owner == False else "n/a") }};
+      object id match: {{ "yes" if case.comparison.resource_id_matches_request else ("no" if case.comparison.resource_id_matches_request == False else "n/a") }}
+      {% else %}not compared (baseline case){% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+{% endfor %}
+<p class="small">Bearer tokens, credentials, raw response bodies, personal data and
+location coordinates are never stored or displayed. Resource identifiers appear only
+as truncated SHA-256 fingerprints.</p>
+
+<h2>9. Limitations</h2>
+<ul>
+  {% for item in report.limitations %}<li>{{ item }}</li>{% endfor %}
+</ul>
+
+<h2>10. Conclusion</h2>
+<p>{{ report.conclusion }}</p>
+
+<div class="foot">
+  Generated by APIShield {{ report.tool.version }} from the local scan database.
+  All evidence is redacted. This report reflects only the recorded scan run
+  {{ report.run_id }}.
+</div>
+
+</div>
+</body>
+</html>

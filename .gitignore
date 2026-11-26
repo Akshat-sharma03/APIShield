@@ -1,0 +1,30 @@
+# Secrets - never commit
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Pytest
+.pytest_cache/
+
+# Local databases
+evidence/*.db
+evidence/*.sqlite*
+
+# Generated reports and runtime evidence
+reports/*
+!reports/.gitkeep
+evidence/*
+!evidence/.gitkeep
+
+# Logs
+*.log
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store

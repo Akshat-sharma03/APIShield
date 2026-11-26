@@ -1,0 +1,23 @@
+{
+  "_notes": "identity_fields, ownership_fields, resource_id_fields and sensitive_fields are provisional expectations. They must be verified against actual crAPI responses during Kali integration testing before being relied upon for classification.",
+  "endpoints": [
+    {
+      "endpoint_id": "vehicle_location",
+      "name": "Vehicle Location",
+      "method": "GET",
+      "path": "/identity/api/v2/vehicle/{vehicle_id}/location",
+      "requires_authentication": true,
+      "resource_type": "vehicle",
+      "resource_id_variable": "vehicle_id",
+      "policy": {
+        "own_resource": "ALLOW",
+        "cross_account": "DENY",
+        "unauthenticated": "DENY"
+      },
+      "identity_fields": ["fullName", "email"],
+      "ownership_fields": ["carId"],
+      "resource_id_fields": ["vehicleId", "id"],
+      "sensitive_fields": ["latitude", "longitude", "vehicleLocation"]
+    }
+  ]
+}
